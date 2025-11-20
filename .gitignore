@@ -1,0 +1,86 @@
+# =========================
+# Node.js
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+*.log.*
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.lcov
+
+# Build output
+dist/
+build/
+.cache/
+.next/
+out/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Runtime data
+*.sqlite
+*.sqlite3
+
+# =========================
+# React (Create React App / Vite)
+# =========================
+# Dependencies
+node_modules/
+
+# Production build
+build/
+
+# Local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Other local files
+.DS_Store
+.parcel-cache/
+.vite/
+vite.config.ts.timestamp*
+vite.config.js.timestamp*
+.sass-cache/
+
+# Testing
+jest-cache/
+jest-test-results.json
+
+# Editor / OS files
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# =========================
+# Optional — If using TypeScript
+# =========================
+*.tsbuildinfo
+
+# =========================
+# Optional — If using Docker
+# =========================
+docker-output/
