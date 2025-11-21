@@ -1,9 +1,22 @@
+import { useState, useEffect } from 'react';
+import {
+  Search,
+  Filter,
+  FileText,
+  Plus,
+  Trash2,
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownLeft
+} from 'lucide-react';
+import { api } from '../services/api';
+import { Transaction } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
-import { Search, Filter, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import {
   Table,
   TableBody,
@@ -20,7 +33,18 @@ import {
   SelectValue,
 } from './ui/select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
+// Mock aggregated data for charts (could be calculated from backend in real app)
 const stateData = [
   { state: 'Uttar Pradesh', allocated: 850, released: 680, utilized: 520 },
   { state: 'Maharashtra', allocated: 720, released: 650, utilized: 580 },
@@ -29,158 +53,280 @@ const stateData = [
   { state: 'Madhya Pradesh', allocated: 520, released: 480, utilized: 420 },
 ];
 
-const transactions = [
-  {
-    id: 'TXN-2024-001',
-    project: 'AG-2024-001',
-    type: 'Release',
-    amount: '₹1,50,00,000',
-    utr: 'UTR2024001234567',
-    date: '2024-01-20',
-    status: 'Completed',
-    statusColor: 'bg-green-100 text-green-700',
-  },
-  {
-    id: 'TXN-2024-045',
-    project: 'HST-2024-023',
-    type: 'Release',
-    amount: '₹2,00,00,000',
-    utr: 'UTR2024001234890',
-    date: '2024-04-15',
-    status: 'Completed',
-    statusColor: 'bg-green-100 text-green-700',
-  },
-  {
-    id: 'TXN-2024-089',
-    project: 'GIA-2024-156',
-    type: 'Adjustment',
-    amount: '₹15,00,000',
-    utr: 'UTR2024001235123',
-    date: '2024-06-10',
-    status: 'Completed',
-    statusColor: 'bg-green-100 text-green-700',
-  },
-  {
-    id: 'TXN-2024-123',
-    project: 'AG-2024-087',
-    type: 'Release',
-    amount: '₹1,80,00,000',
-    utr: 'UTR2024001235456',
-    date: '2024-08-20',
-    status: 'Completed',
-    statusColor: 'bg-green-100 text-green-700',
-  },
-  {
-    id: 'TXN-2024-167',
-    project: 'HST-2024-034',
-    type: 'Release',
-    amount: '₹90,00,000',
-    utr: 'Pending',
-    date: '2024-10-15',
-    status: 'Pending UC',
-    statusColor: 'bg-yellow-100 text-yellow-700',
-  },
-  {
-    id: 'TXN-2024-189',
-    project: 'GIA-2024-089',
-    type: 'Release',
-    amount: '₹1,20,00,000',
-    utr: 'UTR2024001236789',
-    date: '2024-11-05',
-    status: 'Processing',
-    statusColor: 'bg-blue-100 text-blue-700',
-  },
-];
-
 export function FundFlow() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+
+  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterState, setFilterState] = useState('all');
+  const [filterType, setFilterType] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
-  const filteredTransactions = transactions.filter(txn => {
-    const matchesSearch = 
-      txn.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      txn.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      txn.utr.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesSearch;
+  // CRUD States
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [txnToDelete, setTxnToDelete] = useState<string | null>(null);
+
+  // Form State
+  const [formData, setFormData] = useState<Partial<Transaction>>({
+    projectId: '',
+    amount: 0,
+    type: 'Release',
+    status: 'Pending',
+    utr: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0]
   });
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const fetchTransactions = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.transactions.getAll();
+      setTransactions(data);
+    } catch (error) {
+      console.error('Failed to fetch transactions', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.transactions.create(formData as any);
+      setIsAddSheetOpen(false);
+      fetchTransactions();
+      setFormData({
+        projectId: '',
+        amount: 0,
+        type: 'Release',
+        status: 'Pending',
+        utr: '',
+        description: '',
+        date: new Date().toISOString().split('T')[0]
+      });
+    } catch (error) {
+      console.error('Failed to create transaction', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!txnToDelete) return;
+    try {
+      await api.transactions.delete(txnToDelete);
+      setTxnToDelete(null);
+      fetchTransactions();
+    } catch (error) {
+      console.error('Failed to delete transaction', error);
+    }
+  };
+
+  const canEdit = user?.role === 'Admin' || user?.role === 'StateNodalOfficer';
+
+  const filteredTransactions = transactions.filter(txn => {
+    const matchesSearch =
+      txn.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      txn.projectId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (txn.utr && txn.utr.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesType = filterType === 'all' || txn.type === filterType;
+
+    return matchesSearch && matchesType;
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const TransactionForm = ({ onSubmit, submitLabel }: { onSubmit: (e: React.FormEvent) => void, submitLabel: string }) => (
+    <form onSubmit={onSubmit} className="space-y-4 mt-6">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Project ID</label>
+        <Input
+          value={formData.projectId}
+          onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+          placeholder="e.g., AG-2024-001"
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Amount (₹)</label>
+          <Input
+            type="number"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Type</label>
+          <Select
+            value={formData.type}
+            onValueChange={(val: any) => setFormData({ ...formData, type: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Release">Release</SelectItem>
+              <SelectItem value="Utilization">Utilization</SelectItem>
+              <SelectItem value="Adjustment">Adjustment</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Date</label>
+          <Input
+            type="date"
+            value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Status</label>
+          <Select
+            value={formData.status}
+            onValueChange={(val: any) => setFormData({ ...formData, status: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Failed">Failed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">UTR Number</label>
+        <Input
+          value={formData.utr}
+          onChange={(e) => setFormData({ ...formData, utr: e.target.value })}
+          placeholder="Optional"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Description</label>
+        <Input
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Optional notes"
+        />
+      </div>
+
+      <Button type="submit" className="w-full">{submitLabel}</Button>
+    </form>
+  );
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-gray-900 mb-1">Fund Flow Management</h1>
-        <p className="text-gray-500">Track fund allocation, release, and utilization</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Fund Flow Management</h1>
+          <p className="text-gray-500">Track fund allocation, release, and utilization</p>
+        </div>
+
+        {canEdit && (
+          <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+            <SheetTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Record Transaction
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Record New Transaction</SheetTitle>
+              </SheetHeader>
+              <TransactionForm onSubmit={handleCreate} submitLabel="Save Transaction" />
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
-      {/* Sankey Diagram */}
+      {/* Sankey Diagram Placeholder - Kept static for now as it's complex to make dynamic without real data flow logic */}
       <Card>
         <CardHeader>
           <CardTitle>Fund Flow Overview</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="p-6 bg-gradient-to-r from-blue-50 via-purple-50 to-green-50 rounded-lg">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="p-6 bg-white rounded-lg shadow-sm text-center">
-                  <p className="text-gray-600 mb-2">Ministry</p>
-                  <p className="text-gray-900">₹8,245 Cr</p>
-                  <p className="text-gray-500 mt-1">Total Allocated</p>
+            <div className="flex items-center justify-between gap-4 overflow-x-auto">
+              <div className="flex-1 min-w-[120px] space-y-2">
+                <div className="p-4 bg-white rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 mb-2 text-sm">Ministry</p>
+                  <p className="text-gray-900 font-bold">₹8,245 Cr</p>
+                  <p className="text-xs text-gray-500 mt-1">Total Allocated</p>
                 </div>
               </div>
-              
-              <div className="flex flex-col gap-2">
-                <div className="w-20 h-2 bg-blue-400 rounded"></div>
-                <div className="w-20 h-2 bg-blue-300 rounded"></div>
-                <div className="w-20 h-2 bg-blue-200 rounded"></div>
+
+              <div className="flex flex-col gap-2 items-center">
+                <div className="w-16 h-1 bg-blue-400 rounded"></div>
+                <ArrowUpRight className="w-4 h-4 text-blue-400" />
               </div>
-              
-              <div className="flex-1 space-y-2">
-                <div className="p-6 bg-white rounded-lg shadow-sm text-center">
-                  <p className="text-gray-600 mb-2">State Level</p>
-                  <p className="text-gray-900">₹8,245 Cr</p>
-                  <p className="text-gray-500 mt-1">Transferred</p>
+
+              <div className="flex-1 min-w-[120px] space-y-2">
+                <div className="p-4 bg-white rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 mb-2 text-sm">State Level</p>
+                  <p className="text-gray-900 font-bold">₹8,245 Cr</p>
+                  <p className="text-xs text-gray-500 mt-1">Transferred</p>
                 </div>
               </div>
-              
-              <div className="flex flex-col gap-2">
-                <div className="w-20 h-2 bg-purple-400 rounded"></div>
-                <div className="w-20 h-2 bg-purple-300 rounded"></div>
-                <div className="w-20 h-2 bg-purple-200 rounded"></div>
+
+              <div className="flex flex-col gap-2 items-center">
+                <div className="w-16 h-1 bg-purple-400 rounded"></div>
+                <ArrowUpRight className="w-4 h-4 text-purple-400" />
               </div>
-              
-              <div className="flex-1 space-y-2">
-                <div className="p-6 bg-white rounded-lg shadow-sm text-center">
-                  <p className="text-gray-600 mb-2">District Level</p>
-                  <p className="text-gray-900">₹7,850 Cr</p>
-                  <p className="text-gray-500 mt-1">Allocated</p>
+
+              <div className="flex-1 min-w-[120px] space-y-2">
+                <div className="p-4 bg-white rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 mb-2 text-sm">District Level</p>
+                  <p className="text-gray-900 font-bold">₹7,850 Cr</p>
+                  <p className="text-xs text-gray-500 mt-1">Allocated</p>
                 </div>
               </div>
-              
-              <div className="flex flex-col gap-2">
-                <div className="w-20 h-2 bg-green-400 rounded"></div>
-                <div className="w-20 h-2 bg-green-300 rounded"></div>
-                <div className="w-20 h-2 bg-green-200 rounded"></div>
+
+              <div className="flex flex-col gap-2 items-center">
+                <div className="w-16 h-1 bg-green-400 rounded"></div>
+                <ArrowUpRight className="w-4 h-4 text-green-400" />
               </div>
-              
-              <div className="flex-1 space-y-2">
-                <div className="p-6 bg-white rounded-lg shadow-sm text-center">
-                  <p className="text-gray-600 mb-2">Agency</p>
-                  <p className="text-gray-900">₹7,420 Cr</p>
-                  <p className="text-gray-500 mt-1">Released</p>
+
+              <div className="flex-1 min-w-[120px] space-y-2">
+                <div className="p-4 bg-white rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 mb-2 text-sm">Agency</p>
+                  <p className="text-gray-900 font-bold">₹7,420 Cr</p>
+                  <p className="text-xs text-gray-500 mt-1">Released</p>
                 </div>
               </div>
-              
-              <div className="flex flex-col gap-2">
-                <div className="w-20 h-2 bg-cyan-400 rounded"></div>
-                <div className="w-20 h-2 bg-cyan-300 rounded"></div>
+
+              <div className="flex flex-col gap-2 items-center">
+                <div className="w-16 h-1 bg-cyan-400 rounded"></div>
+                <ArrowDownLeft className="w-4 h-4 text-cyan-400" />
               </div>
-              
-              <div className="flex-1 space-y-2">
-                <div className="p-6 bg-white rounded-lg shadow-sm text-center">
-                  <p className="text-gray-600 mb-2">Utilized</p>
-                  <p className="text-gray-900">₹6,892 Cr</p>
-                  <p className="text-gray-500 mt-1">Ground Level</p>
+
+              <div className="flex-1 min-w-[120px] space-y-2">
+                <div className="p-4 bg-white rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 mb-2 text-sm">Utilized</p>
+                  <p className="text-gray-900 font-bold">₹6,892 Cr</p>
+                  <p className="text-xs text-gray-500 mt-1">Ground Level</p>
                 </div>
               </div>
             </div>
@@ -238,17 +384,16 @@ export function FundFlow() {
           {showFilters && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
               <div>
-                <label className="text-gray-700 mb-2 block">State</label>
-                <Select value={filterState} onValueChange={setFilterState}>
+                <label className="text-gray-700 mb-2 block">Transaction Type</label>
+                <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All States</SelectItem>
-                    <SelectItem value="Rajasthan">Rajasthan</SelectItem>
-                    <SelectItem value="Gujarat">Gujarat</SelectItem>
-                    <SelectItem value="Uttar Pradesh">Uttar Pradesh</SelectItem>
-                    <SelectItem value="Maharashtra">Maharashtra</SelectItem>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="Release">Release</SelectItem>
+                    <SelectItem value="Utilization">Utilization</SelectItem>
+                    <SelectItem value="Adjustment">Adjustment</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -266,35 +411,81 @@ export function FundFlow() {
                   <TableHead>UTR</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Ref Docs</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.map((txn) => (
-                  <TableRow key={txn.id}>
-                    <TableCell>{txn.id}</TableCell>
-                    <TableCell className="text-gray-600">{txn.project}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{txn.type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-gray-900">{txn.amount}</TableCell>
-                    <TableCell className="text-gray-600">{txn.utr}</TableCell>
-                    <TableCell className="text-gray-600">{txn.date}</TableCell>
-                    <TableCell>
-                      <Badge className={txn.statusColor}>{txn.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">
-                        <FileText className="w-4 h-4" />
-                      </Button>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      Loading transactions...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredTransactions.map((txn) => (
+                    <TableRow key={txn.id}>
+                      <TableCell className="font-mono text-xs">{txn.id}</TableCell>
+                      <TableCell className="text-gray-600">{txn.projectId}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{txn.type}</Badge>
+                      </TableCell>
+                      <TableCell className="text-gray-900 font-medium">
+                        {formatCurrency(txn.amount)}
+                      </TableCell>
+                      <TableCell className="text-gray-600 font-mono text-xs">{txn.utr || '-'}</TableCell>
+                      <TableCell className="text-gray-600">{txn.date}</TableCell>
+                      <TableCell>
+                        <Badge className={
+                          txn.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                            txn.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                        }>
+                          {txn.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm">
+                            <FileText className="w-4 h-4" />
+                          </Button>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => setTxnToDelete(txn.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Alert */}
+      <AlertDialog open={!!txnToDelete} onOpenChange={() => setTxnToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the transaction record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

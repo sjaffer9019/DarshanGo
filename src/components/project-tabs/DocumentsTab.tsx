@@ -1,90 +1,40 @@
+import { useState, useEffect } from 'react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { FileText, Download, Eye } from 'lucide-react';
+import { FileText, Download, Eye, Trash2, Upload } from 'lucide-react';
+import { api } from '../../services/api';
+import { Document } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '../ui/sheet';
+import { Input } from '../ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../ui/alert-dialog';
 
-const documents = [
-  {
-    id: 1,
-    title: 'Project Proposal Document',
-    type: 'Proposal',
-    uploadedBy: 'Project Manager',
-    date: '2024-01-10',
-    size: '2.4 MB',
-    category: 'Planning',
-  },
-  {
-    id: 2,
-    title: 'Environmental Clearance Certificate',
-    type: 'Certificate',
-    uploadedBy: 'Legal Team',
-    date: '2024-01-25',
-    size: '1.1 MB',
-    category: 'Compliance',
-  },
-  {
-    id: 3,
-    title: 'Detailed Project Report (DPR)',
-    type: 'Report',
-    uploadedBy: 'Technical Team',
-    date: '2024-02-05',
-    size: '8.7 MB',
-    category: 'Technical',
-  },
-  {
-    id: 4,
-    title: 'Fund Sanction Letter',
-    type: 'Letter',
-    uploadedBy: 'Finance Officer',
-    date: '2024-02-15',
-    size: '0.5 MB',
-    category: 'Finance',
-  },
-  {
-    id: 5,
-    title: 'Q1 Progress Report',
-    type: 'Report',
-    uploadedBy: 'Project Manager',
-    date: '2024-04-01',
-    size: '3.2 MB',
-    category: 'Progress',
-  },
-  {
-    id: 6,
-    title: 'Site Inspection Report - May 2024',
-    type: 'Inspection',
-    uploadedBy: 'Inspector A. Sharma',
-    date: '2024-05-15',
-    size: '4.1 MB',
-    category: 'Inspection',
-  },
-  {
-    id: 7,
-    title: 'Q2 Progress Report',
-    type: 'Report',
-    uploadedBy: 'Project Manager',
-    date: '2024-07-01',
-    size: '3.5 MB',
-    category: 'Progress',
-  },
-  {
-    id: 8,
-    title: 'Utilization Certificate Q2',
-    type: 'Certificate',
-    uploadedBy: 'Finance Officer',
-    date: '2024-07-20',
-    size: '0.8 MB',
-    category: 'Finance',
-  },
-  {
-    id: 9,
-    title: 'Q3 Progress Report',
-    type: 'Report',
-    uploadedBy: 'Project Manager',
-    date: '2024-10-01',
-    size: '3.8 MB',
-    category: 'Progress',
-  },
-];
+interface DocumentsTabProps {
+  projectId: string;
+}
 
 const categoryColors: Record<string, string> = {
   Planning: 'bg-blue-100 text-blue-700',
@@ -95,57 +45,222 @@ const categoryColors: Record<string, string> = {
   Inspection: 'bg-orange-100 text-orange-700',
 };
 
-export function DocumentsTab() {
+export function DocumentsTab({ projectId }: DocumentsTabProps) {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+
+  const [formData, setFormData] = useState({
+    title: '',
+    type: 'Report',
+    category: 'Progress',
+    size: '1.5 MB', // Mock size
+    url: '#'
+  });
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [projectId]);
+
+  const fetchDocuments = async () => {
+    setIsLoading(true);
+    try {
+      const allDocs = await api.documents.getAll();
+      const projectDocs = allDocs.filter(d => d.projectId === projectId);
+      setDocuments(projectDocs);
+    } catch (error) {
+      console.error('Failed to fetch documents', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const newDoc: Omit<Document, 'id'> = {
+        projectId,
+        title: formData.title,
+        type: formData.type,
+        category: formData.category,
+        uploadedBy: user?.name || 'Unknown',
+        uploadDate: new Date().toISOString().split('T')[0],
+        size: formData.size,
+        url: formData.url
+      };
+
+      await api.documents.create(newDoc);
+      setIsAddSheetOpen(false);
+      fetchDocuments();
+      setFormData({
+        title: '',
+        type: 'Report',
+        category: 'Progress',
+        size: '1.5 MB',
+        url: '#'
+      });
+    } catch (error) {
+      console.error('Failed to create document', error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.documents.delete(id);
+      fetchDocuments();
+    } catch (error) {
+      console.error('Failed to delete document', error);
+    }
+  };
+
+  const canEdit = user?.role === 'Admin' || user?.role === 'StateNodalOfficer' || user?.role === 'AgencyAdmin';
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-gray-600">{documents.length} documents available</p>
-        <Button variant="outline" size="sm">
-          Upload Document
-        </Button>
+        {canEdit && (
+          <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Document
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Upload New Document</SheetTitle>
+              </SheetHeader>
+              <form onSubmit={handleCreate} className="space-y-4 mt-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Document Title</label>
+                  <Input
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="e.g. Q3 Progress Report"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Document Type</label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(val: string) => setFormData({ ...formData, type: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Report">Report</SelectItem>
+                      <SelectItem value="Certificate">Certificate</SelectItem>
+                      <SelectItem value="Proposal">Proposal</SelectItem>
+                      <SelectItem value="Letter">Letter</SelectItem>
+                      <SelectItem value="Inspection">Inspection</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Category</label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(val: string) => setFormData({ ...formData, category: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Planning">Planning</SelectItem>
+                      <SelectItem value="Compliance">Compliance</SelectItem>
+                      <SelectItem value="Technical">Technical</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                      <SelectItem value="Progress">Progress</SelectItem>
+                      <SelectItem value="Inspection">Inspection</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button type="submit" className="w-full">Upload Document</Button>
+              </form>
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {documents.map((doc) => (
-          <div
-            key={doc.id}
-            className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
-          >
-            <div className="flex gap-3">
-              <div className="p-3 bg-blue-50 rounded-lg h-fit">
-                <FileText className="w-6 h-6 text-blue-600" />
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="text-gray-900">{doc.title}</h4>
+      {isLoading ? (
+        <div className="text-center py-8 text-gray-500">Loading documents...</div>
+      ) : documents.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">No documents found for this project.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {documents.map((doc) => (
+            <div
+              key={doc.id}
+              className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
+            >
+              <div className="flex gap-3">
+                <div className="p-3 bg-blue-50 rounded-lg h-fit">
+                  <FileText className="w-6 h-6 text-blue-600" />
                 </div>
-                
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="outline">{doc.type}</Badge>
-                  <Badge className={categoryColors[doc.category]}>{doc.category}</Badge>
-                </div>
-                
-                <div className="space-y-1 text-gray-600 mb-3">
-                  <p>Uploaded by {doc.uploadedBy}</p>
-                  <p>{doc.date} • {doc.size}</p>
-                </div>
-                
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="gap-1">
-                    <Eye className="w-3 h-3" />
-                    View
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1">
-                    <Download className="w-3 h-3" />
-                    Download
-                  </Button>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="text-gray-900 font-medium truncate pr-2">{doc.title}</h4>
+                    {canEdit && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Document</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete this document? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(doc.id)} className="bg-red-600 hover:bg-red-700">
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <Badge variant="outline">{doc.type}</Badge>
+                    {doc.category && categoryColors[doc.category] && (
+                      <Badge className={categoryColors[doc.category]}>{doc.category}</Badge>
+                    )}
+                  </div>
+
+                  <div className="space-y-1 text-gray-600 mb-3 text-sm">
+                    <p>Uploaded by {doc.uploadedBy}</p>
+                    <p>{doc.uploadDate} • {doc.size}</p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="gap-1 h-8">
+                      <Eye className="w-3 h-3" />
+                      View
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-1 h-8">
+                      <Download className="w-3 h-3" />
+                      Download
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

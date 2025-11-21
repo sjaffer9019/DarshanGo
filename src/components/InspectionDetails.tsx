@@ -1,49 +1,67 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 import { ArrowLeft, MapPin, Calendar, User, Image as ImageIcon, Download } from 'lucide-react';
-import { ImageWithFallback } from './figma/ImageWithFallback';
-
-const inspectionData = {
-  'INS-2024-001': {
-    id: 'INS-2024-001',
-    project: 'AG-2024-001 - Adarsh Gram Development - Village Rampur',
-    inspector: 'A. K. Sharma',
-    date: '2024-03-15',
-    location: 'Village Rampur, Lucknow, Uttar Pradesh',
-    geoLocation: '26.8467° N, 80.9462° E',
-    status: 'Completed',
-    rating: 'Satisfactory',
-    statusColor: 'bg-green-100 text-green-700',
-    ratingColor: 'bg-green-100 text-green-700',
-    checklist: [
-      { id: 1, item: 'Site accessibility verified', checked: true },
-      { id: 2, item: 'Construction materials quality check', checked: true },
-      { id: 3, item: 'Safety measures in place', checked: true },
-      { id: 4, item: 'Work progress as per timeline', checked: true },
-      { id: 5, item: 'Labor welfare compliance', checked: true },
-      { id: 6, item: 'Environmental norms followed', checked: true },
-      { id: 7, item: 'Documentation up to date', checked: true },
-      { id: 8, item: 'Quality standards met', checked: true },
-    ],
-    observations: 'All construction work is progressing as per the approved plan. Quality of materials used is satisfactory. Safety measures are properly implemented at the site. Minor delays expected due to monsoon season but overall progress is on track.',
-    recommendations: 'Continue monitoring material quality. Ensure timely completion of water supply system installation. Schedule next inspection after monsoon season.',
-  },
-};
+import { api } from '../services/api';
+import { Inspection } from '../types';
 
 export function InspectionDetails() {
   const { id } = useParams<{ id: string }>();
-  const inspection = id ? inspectionData[id as keyof typeof inspectionData] : null;
+  const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchInspection = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        const allInspections = await api.inspections.getAll();
+        const found = allInspections.find(i => i.id === id);
+        setInspection(found || null);
+      } catch (error) {
+        console.error('Failed to fetch inspection details', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInspection();
+  }, [id]);
+
+  if (isLoading) {
+    return <div className="p-6">Loading inspection details...</div>;
+  }
 
   if (!inspection) {
     return (
       <div className="p-6">
         <p>Inspection not found</p>
+        <Link to="/monitoring">
+          <Button variant="link">Back to Inspections</Button>
+        </Link>
       </div>
     );
   }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Completed': return 'bg-green-100 text-green-700';
+      case 'Scheduled': return 'bg-blue-100 text-blue-700';
+      default: return 'bg-yellow-100 text-yellow-700';
+    }
+  };
+
+  const getRatingColor = (rating: string) => {
+    switch (rating) {
+      case 'Good': return 'bg-green-100 text-green-700';
+      case 'Satisfactory': return 'bg-blue-100 text-blue-700';
+      case 'Needs Attention': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -63,10 +81,10 @@ export function InspectionDetails() {
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-gray-900">{inspection.id}</h1>
-                <Badge className={inspection.statusColor}>{inspection.status}</Badge>
-                <Badge className={inspection.ratingColor}>{inspection.rating}</Badge>
+                <Badge className={getStatusColor(inspection.status)}>{inspection.status}</Badge>
+                <Badge className={getRatingColor(inspection.rating)}>{inspection.rating}</Badge>
               </div>
-              <p className="text-gray-600 mb-4">{inspection.project}</p>
+              <p className="text-gray-600 mb-4">Project ID: {inspection.projectId}</p>
             </div>
             <Button className="gap-2">
               <Download className="w-4 h-4" />
@@ -79,7 +97,7 @@ export function InspectionDetails() {
               <User className="w-4 h-4 text-gray-400 mt-1" />
               <div>
                 <p className="text-gray-500">Inspector</p>
-                <p className="text-gray-900">{inspection.inspector}</p>
+                <p className="text-gray-900">{inspection.inspectorName || inspection.inspectorId || 'N/A'}</p>
               </div>
             </div>
             <div className="flex items-start gap-2">
@@ -93,7 +111,7 @@ export function InspectionDetails() {
               <MapPin className="w-4 h-4 text-gray-400 mt-1" />
               <div>
                 <p className="text-gray-500">Location</p>
-                <p className="text-gray-900">{inspection.location}</p>
+                <p className="text-gray-900">{inspection.location || 'Not specified'}</p>
               </div>
             </div>
           </div>
@@ -101,73 +119,75 @@ export function InspectionDetails() {
       </Card>
 
       {/* Geo-location */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Geo-location Tag</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="p-4 bg-blue-50 rounded-lg flex items-center gap-3">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            <div>
-              <p className="text-blue-900">GPS Coordinates</p>
-              <p className="text-blue-700">{inspection.geoLocation}</p>
+      {inspection.geoLocation && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Geo-location Tag</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-blue-50 rounded-lg flex items-center gap-3">
+              <MapPin className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-blue-900">GPS Coordinates</p>
+                <p className="text-blue-700">{inspection.geoLocation}</p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Checklist */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Inspection Checklist</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {inspection.checklist.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <Checkbox checked={item.checked} disabled />
-                <span className="text-gray-900">{item.item}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Photo Uploads */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Site Photographs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((idx) => (
-              <div key={idx} className="aspect-square bg-gray-100 rounded-lg overflow-hidden group cursor-pointer hover:shadow-lg transition-shadow">
-                <div className="w-full h-full flex items-center justify-center">
-                  <ImageIcon className="w-12 h-12 text-gray-400" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Observations */}
       <Card>
         <CardHeader>
-          <CardTitle>Observations</CardTitle>
+          <CardTitle>Observations & Findings</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-600 leading-relaxed">{inspection.observations}</p>
+          <p className="text-gray-600 leading-relaxed">{inspection.findings || inspection.comments || 'No observations recorded.'}</p>
         </CardContent>
       </Card>
 
-      {/* Recommendations */}
+      {/* Detailed Review */}
       <Card>
         <CardHeader>
-          <CardTitle>Recommendations</CardTitle>
+          <CardTitle>Detailed Review</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-600 leading-relaxed">{inspection.recommendations}</p>
+          <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+            {inspection.detailedReview || 'No detailed review available. This section contains in-depth analysis and recommendations based on the site visit.'}
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Site Images */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Site Images</CardTitle>
+            <Button variant="outline" size="sm">
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Upload Photos
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {inspection.images && inspection.images.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {inspection.images.map((img, index) => (
+                <div key={index} className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative group">
+                  <img src={img} alt={`Site photo ${index + 1}`} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Button variant="secondary" size="sm">View</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+              <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500">No images uploaded yet</p>
+              <Button variant="link" className="mt-1">Click to upload site photos</Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

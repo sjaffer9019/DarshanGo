@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { 
-  FolderKanban, 
-  PlayCircle, 
-  DollarSign, 
-  TrendingUp, 
-  Percent, 
-  AlertCircle 
+import { useNavigate } from 'react-router-dom';
+import {
+  FolderKanban,
+  PlayCircle,
+  DollarSign,
+  TrendingUp,
+  Percent,
+  AlertCircle
 } from 'lucide-react';
 import { MapView } from './MapView';
 import { RecentProjects } from './RecentProjects';
@@ -18,6 +19,7 @@ const kpiData = [
     icon: FolderKanban,
     color: 'bg-blue-50 text-blue-600',
     iconBg: 'bg-blue-100',
+    link: '/projects'
   },
   {
     title: 'Ongoing Projects',
@@ -25,6 +27,7 @@ const kpiData = [
     icon: PlayCircle,
     color: 'bg-green-50 text-green-600',
     iconBg: 'bg-green-100',
+    link: '/projects?status=In Progress'
   },
   {
     title: 'Funds Released',
@@ -32,6 +35,7 @@ const kpiData = [
     icon: DollarSign,
     color: 'bg-purple-50 text-purple-600',
     iconBg: 'bg-purple-100',
+    link: '/fund-flow'
   },
   {
     title: 'Funds Utilized',
@@ -39,6 +43,7 @@ const kpiData = [
     icon: TrendingUp,
     color: 'bg-indigo-50 text-indigo-600',
     iconBg: 'bg-indigo-100',
+    link: '/fund-flow'
   },
   {
     title: 'Avg Completion %',
@@ -46,6 +51,7 @@ const kpiData = [
     icon: Percent,
     color: 'bg-cyan-50 text-cyan-600',
     iconBg: 'bg-cyan-100',
+    link: '/projects'
   },
   {
     title: 'Delayed Projects',
@@ -53,10 +59,13 @@ const kpiData = [
     icon: AlertCircle,
     color: 'bg-orange-50 text-orange-600',
     iconBg: 'bg-orange-100',
+    link: '/projects?status=Delayed'
   },
 ];
 
 export function HomeDashboard() {
+  const navigate = useNavigate();
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -69,7 +78,11 @@ export function HomeDashboard() {
         {kpiData.map((kpi) => {
           const Icon = kpi.icon;
           return (
-            <Card key={kpi.title} className="hover:shadow-md transition-shadow">
+            <Card
+              key={kpi.title}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(kpi.link)}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">

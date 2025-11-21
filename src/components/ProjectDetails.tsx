@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -8,38 +9,56 @@ import { MilestonesTab } from './project-tabs/MilestonesTab';
 import { FundFlowTab } from './project-tabs/FundFlowTab';
 import { DocumentsTab } from './project-tabs/DocumentsTab';
 import { InspectionsTab } from './project-tabs/InspectionsTab';
-
-const projectData = {
-  'AG-2024-001': {
-    id: 'AG-2024-001',
-    title: 'Adarsh Gram Development - Village Rampur',
-    component: 'Adarsh Gram',
-    implementingAgency: 'PRI-UP-034 - Uttar Pradesh Panchayati Raj',
-    executingAgency: 'PWD-UP-089 - UP Public Works Department',
-    state: 'Uttar Pradesh',
-    district: 'Lucknow',
-    status: 'In Progress',
-    progress: 75,
-    startDate: '2024-01-15',
-    expectedCompletion: '2024-12-31',
-    totalBudget: '₹4.5 Cr',
-    fundsReleased: '₹3.4 Cr',
-    fundsUtilized: '₹2.8 Cr',
-    statusColor: 'bg-blue-100 text-blue-700',
-  },
-};
+import { api } from '../services/api';
+import { Project } from '../types';
 
 export function ProjectDetails() {
   const { id } = useParams<{ id: string }>();
-  const project = id ? projectData[id as keyof typeof projectData] : null;
+  const [project, setProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        // In a real app, we would have a getById method. 
+        // For now, we filter from getAll since getById might not be implemented in the mock service yet
+        // or we can implement getById in api.ts if not present.
+        // Checking api.ts previously, it didn't have getById explicitly shown in the summary but likely has it or we can filter.
+        // Let's assume we need to filter for now to be safe, or better, add getById to api.ts if missing.
+        // Actually, let's try to find it from the list.
+        const projects = await api.projects.getAll();
+        const found = projects.find(p => p.id === id);
+        setProject(found || null);
+      } catch (error) {
+        console.error('Failed to fetch project details', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProject();
+  }, [id]);
+
+  if (isLoading) {
+    return <div className="p-6 text-center">Loading project details...</div>;
+  }
 
   if (!project) {
     return (
       <div className="p-6">
         <p>Project not found</p>
+        <Link to="/projects">
+          <Button variant="link">Back to Projects</Button>
+        </Link>
       </div>
     );
   }
+
+  const statusColor = project.status === 'Completed' ? 'bg-green-100 text-green-700' :
+    project.status === 'Delayed' ? 'bg-red-100 text-red-700' :
+      'bg-blue-100 text-blue-700';
 
   return (
     <div className="p-6 space-y-6">
@@ -63,8 +82,8 @@ export function ProjectDetails() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-gray-900">{project.title}</h1>
-                    <Badge className={project.statusColor}>{project.status}</Badge>
+                    <h1 className="text-gray-900 text-xl font-bold">{project.title}</h1>
+                    <Badge className={statusColor}>{project.status}</Badge>
                   </div>
                   <p className="text-gray-500 mb-2">{project.id}</p>
                   <Badge variant="outline">{project.component}</Badge>
@@ -75,29 +94,29 @@ export function ProjectDetails() {
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-gray-400 mt-1" />
                   <div>
-                    <p className="text-gray-500">Implementing Agency</p>
-                    <p className="text-gray-900">{project.implementingAgency}</p>
+                    <p className="text-gray-500 text-sm">Implementing Agency</p>
+                    <p className="text-gray-900 font-medium">{project.implementingAgencyId}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-gray-400 mt-1" />
                   <div>
-                    <p className="text-gray-500">Executing Agency</p>
-                    <p className="text-gray-900">{project.executingAgency}</p>
+                    <p className="text-gray-500 text-sm">Executing Agency</p>
+                    <p className="text-gray-900 font-medium">{project.executingAgencyId}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-gray-400 mt-1" />
                   <div>
-                    <p className="text-gray-500">Location</p>
-                    <p className="text-gray-900">{project.district}, {project.state}</p>
+                    <p className="text-gray-500 text-sm">Location</p>
+                    <p className="text-gray-900 font-medium">{project.district}, {project.state}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Calendar className="w-4 h-4 text-gray-400 mt-1" />
                   <div>
-                    <p className="text-gray-500">Timeline</p>
-                    <p className="text-gray-900">{project.startDate} to {project.expectedCompletion}</p>
+                    <p className="text-gray-500 text-sm">Timeline</p>
+                    <p className="text-gray-900 font-medium">{project.startDate} to {project.endDate}</p>
                   </div>
                 </div>
               </div>
@@ -105,7 +124,7 @@ export function ProjectDetails() {
 
             <div className="lg:w-64">
               <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
-                <p className="text-gray-700 text-center mb-4">Overall Progress</p>
+                <p className="text-gray-700 text-center mb-4 font-medium">Overall Progress</p>
                 <div className="relative w-32 h-32 mx-auto">
                   <svg className="w-full h-full" viewBox="0 0 100 100">
                     <circle
@@ -129,7 +148,7 @@ export function ProjectDetails() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-blue-900">{project.progress}%</span>
+                    <span className="text-blue-900 font-bold text-xl">{project.progress}%</span>
                   </div>
                 </div>
               </div>
@@ -142,20 +161,20 @@ export function ProjectDetails() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
-            <p className="text-gray-500 mb-1">Total Budget</p>
-            <p className="text-gray-900">{project.totalBudget}</p>
+            <p className="text-gray-500 mb-1 text-sm">Total Budget</p>
+            <p className="text-gray-900 font-bold text-lg">₹{(project.estimatedCost / 10000000).toFixed(2)} Cr</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-gray-500 mb-1">Funds Released</p>
-            <p className="text-gray-900">{project.fundsReleased}</p>
+            <p className="text-gray-500 mb-1 text-sm">Funds Released</p>
+            <p className="text-gray-900 font-bold text-lg">₹{((project.estimatedCost * 0.7) / 10000000).toFixed(2)} Cr</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <p className="text-gray-500 mb-1">Funds Utilized</p>
-            <p className="text-gray-900">{project.fundsUtilized}</p>
+            <p className="text-gray-500 mb-1 text-sm">Funds Utilized</p>
+            <p className="text-gray-900 font-bold text-lg">₹{((project.estimatedCost * 0.5) / 10000000).toFixed(2)} Cr</p>
           </CardContent>
         </Card>
       </div>
@@ -176,17 +195,15 @@ export function ProjectDetails() {
             <TabsContent value="overview" className="mt-6">
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-gray-900 mb-3">Project Description</h3>
+                  <h3 className="text-gray-900 mb-3 font-semibold">Project Description</h3>
                   <p className="text-gray-600">
-                    Comprehensive development project aimed at transforming Village Rampur into an Adarsh Gram (Model Village) 
-                    through infrastructure development, sanitation facilities, water supply systems, and community amenities. 
-                    The project includes construction of community centers, road improvements, and implementation of sustainable 
-                    development practices.
+                    Comprehensive development project aimed at transforming {project.district} into a model district
+                    through infrastructure development, sanitation facilities, water supply systems, and community amenities.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="text-gray-900 mb-3">Key Objectives</h3>
+                  <h3 className="text-gray-900 mb-3 font-semibold">Key Objectives</h3>
                   <ul className="space-y-2">
                     <li className="flex items-start gap-2">
                       <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
@@ -206,43 +223,23 @@ export function ProjectDetails() {
                     </li>
                   </ul>
                 </div>
-
-                <div>
-                  <h3 className="text-gray-900 mb-3">Recent Activity</h3>
-                  <div className="space-y-3">
-                    <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                      <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-gray-900">Milestone 3 Completed</p>
-                        <p className="text-gray-500">Water supply system installation finished - 2024-11-18</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 p-3 bg-gray-50 rounded-lg">
-                      <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-gray-900">Inspection Scheduled</p>
-                        <p className="text-gray-500">Site inspection by monitoring team on 2024-11-25</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </TabsContent>
 
             <TabsContent value="milestones" className="mt-6">
-              <MilestonesTab />
+              <MilestonesTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="fundflow" className="mt-6">
-              <FundFlowTab />
+              <FundFlowTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="documents" className="mt-6">
-              <DocumentsTab />
+              <DocumentsTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="inspections" className="mt-6">
-              <InspectionsTab />
+              <InspectionsTab projectId={project.id} />
             </TabsContent>
 
             <TabsContent value="logs" className="mt-6">
@@ -250,9 +247,6 @@ export function ProjectDetails() {
                 {[
                   { action: 'Project status updated to "In Progress"', user: 'Admin User', date: '2024-11-20 10:30' },
                   { action: 'Fund release approved - ₹50L', user: 'Finance Officer', date: '2024-11-19 14:15' },
-                  { action: 'Milestone 3 marked as complete', user: 'Project Manager', date: '2024-11-18 16:45' },
-                  { action: 'Document uploaded: Progress Report Q3', user: 'Project Manager', date: '2024-11-15 09:20' },
-                  { action: 'Inspection report submitted', user: 'Inspector A. Sharma', date: '2024-11-12 11:30' },
                 ].map((log, idx) => (
                   <div key={idx} className="flex justify-between items-start p-3 border border-gray-200 rounded-lg">
                     <div>

@@ -1,10 +1,24 @@
-import { useState } from 'react';
-import { Card, CardContent } from './ui/card';
+import { useState, useEffect } from 'react';
+import {
+  Search,
+  Filter,
+  Eye,
+  Building2,
+  Phone,
+  Mail,
+  Plus,
+  MoreVertical,
+  Pencil,
+  Trash2
+} from 'lucide-react';
+import { api } from '../services/api';
+import { Agency } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Search, Filter, Eye, Building2, Phone, Mail } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import {
   Table,
   TableBody,
@@ -20,109 +34,261 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-
-const agencies = [
-  {
-    code: 'PWD-RJ-001',
-    name: 'Public Works Department Rajasthan',
-    type: 'PWD',
-    role: 'Implementing',
-    components: ['Adarsh Gram', 'GIA'],
-    activeProjects: 45,
-    contact: 'Rajesh Kumar',
-    lastUpdated: '2024-11-18',
-    state: 'Rajasthan',
-    district: 'Jaipur',
-    phone: '+91 98765 43210',
-    email: 'pwd.raj@gov.in',
-    performance: 85,
-  },
-  {
-    code: 'NGO-GJ-012',
-    name: 'Gujarat Social Development Foundation',
-    type: 'NGO',
-    role: 'Executing',
-    components: ['Hostel'],
-    activeProjects: 23,
-    contact: 'Priya Shah',
-    lastUpdated: '2024-11-19',
-    state: 'Gujarat',
-    district: 'Ahmedabad',
-    phone: '+91 98765 43211',
-    email: 'gsdf@ngo.org',
-    performance: 92,
-  },
-  {
-    code: 'PRI-UP-034',
-    name: 'Uttar Pradesh Panchayati Raj',
-    type: 'PRI',
-    role: 'Implementing',
-    components: ['Adarsh Gram'],
-    activeProjects: 67,
-    contact: 'Amit Verma',
-    lastUpdated: '2024-11-20',
-    state: 'Uttar Pradesh',
-    district: 'Lucknow',
-    phone: '+91 98765 43212',
-    email: 'pri.up@gov.in',
-    performance: 78,
-  },
-  {
-    code: 'SD-MH-045',
-    name: 'Maharashtra State Department',
-    type: 'State Dept',
-    role: 'Implementing',
-    components: ['GIA', 'Hostel'],
-    activeProjects: 89,
-    contact: 'Sunita Patil',
-    lastUpdated: '2024-11-19',
-    state: 'Maharashtra',
-    district: 'Mumbai',
-    phone: '+91 98765 43213',
-    email: 'msd@gov.in',
-    performance: 88,
-  },
-  {
-    code: 'PWD-MP-067',
-    name: 'Madhya Pradesh PWD',
-    type: 'PWD',
-    role: 'Executing',
-    components: ['Hostel', 'Adarsh Gram'],
-    activeProjects: 54,
-    contact: 'Vijay Singh',
-    lastUpdated: '2024-11-17',
-    state: 'Madhya Pradesh',
-    district: 'Bhopal',
-    phone: '+91 98765 43214',
-    email: 'pwd.mp@gov.in',
-    performance: 81,
-  },
-];
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 export function AgencyMapping() {
-  const [selectedAgency, setSelectedAgency] = useState<typeof agencies[0] | null>(null);
+  const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+
+  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
   const [filterState, setFilterState] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
+  // CRUD States
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
+  const [selectedAgency, setSelectedAgency] = useState<Agency | null>(null); // For View
+  const [editingAgency, setEditingAgency] = useState<Agency | null>(null); // For Edit
+  const [agencyToDelete, setAgencyToDelete] = useState<string | null>(null);
+
+  // Form State
+  const [formData, setFormData] = useState<Partial<Agency>>({
+    name: '',
+    code: '',
+    type: 'NGO',
+    role: 'Implementing',
+    state: '',
+    district: '',
+    contact: '',
+    phone: '',
+    email: '',
+    components: [],
+    activeProjects: 0,
+    performance: 0
+  });
+
+  useEffect(() => {
+    fetchAgencies();
+  }, []);
+
+  const fetchAgencies = async () => {
+    setIsLoading(true);
+    try {
+      const data = await api.agencies.getAll();
+      setAgencies(data);
+    } catch (error) {
+      console.error('Failed to fetch agencies', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.agencies.create(formData as any);
+      setIsAddSheetOpen(false);
+      fetchAgencies();
+      resetForm();
+    } catch (error) {
+      console.error('Failed to create agency', error);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgency) return;
+    try {
+      await api.agencies.update(editingAgency.id, formData);
+      setIsEditSheetOpen(false);
+      setEditingAgency(null);
+      fetchAgencies();
+    } catch (error) {
+      console.error('Failed to update agency', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!agencyToDelete) return;
+    try {
+      await api.agencies.delete(agencyToDelete);
+      setAgencyToDelete(null);
+      fetchAgencies();
+    } catch (error) {
+      console.error('Failed to delete agency', error);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      code: '',
+      type: 'NGO',
+      role: 'Implementing',
+      state: '',
+      district: '',
+      contact: '',
+      phone: '',
+      email: '',
+      components: [],
+      activeProjects: 0,
+      performance: 0
+    });
+  };
+
+  const openEditSheet = (agency: Agency) => {
+    setEditingAgency(agency);
+    setFormData(agency);
+    setIsEditSheetOpen(true);
+  };
+
+  const canEdit = user?.role === 'Admin' || user?.role === 'StateNodalOfficer';
+
   const filteredAgencies = agencies.filter(agency => {
-    const matchesSearch = 
+    const matchesSearch =
       agency.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       agency.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       agency.state.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesState = filterState === 'all' || agency.state === filterState;
     const matchesType = filterType === 'all' || agency.type === filterType;
-    
+
     return matchesSearch && matchesState && matchesType;
   });
 
+  const AgencyForm = ({ onSubmit, submitLabel }: { onSubmit: (e: React.FormEvent) => void, submitLabel: string }) => (
+    <form onSubmit={onSubmit} className="space-y-4 mt-6">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Agency Name</label>
+        <Input
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Code</label>
+          <Input
+            value={formData.code}
+            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Type</label>
+          <Select
+            value={formData.type}
+            onValueChange={(val: any) => setFormData({ ...formData, type: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PWD">PWD</SelectItem>
+              <SelectItem value="NGO">NGO</SelectItem>
+              <SelectItem value="PRI">PRI</SelectItem>
+              <SelectItem value="State Dept">State Dept</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">State</label>
+          <Input
+            value={formData.state}
+            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">District</label>
+          <Input
+            value={formData.district}
+            onChange={(e) => setFormData({ ...formData, district: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Contact Person</label>
+        <Input
+          value={formData.contact}
+          onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Phone</label>
+          <Input
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Email</label>
+          <Input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+
+      <Button type="submit" className="w-full">{submitLabel}</Button>
+    </form>
+  );
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-gray-900 mb-1">Agency Mapping</h1>
-        <p className="text-gray-500">Manage and monitor implementing and executing agencies</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Agency Mapping</h1>
+          <p className="text-gray-500">Manage and monitor implementing and executing agencies</p>
+        </div>
+
+        {canEdit && (
+          <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+            <SheetTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Agency
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Register New Agency</SheetTitle>
+              </SheetHeader>
+              <AgencyForm onSubmit={handleCreate} submitLabel="Register Agency" />
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
       <Card>
@@ -199,48 +365,82 @@ export function AgencyMapping() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAgencies.map((agency) => (
-                  <TableRow key={agency.code}>
-                    <TableCell>{agency.code}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-gray-400" />
-                        {agency.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{agency.type}</Badge>
-                    </TableCell>
-                    <TableCell>{agency.role}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {agency.components.map((comp) => (
-                          <Badge key={comp} className="bg-blue-50 text-blue-700">
-                            {comp}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>{agency.activeProjects}</TableCell>
-                    <TableCell>{agency.contact}</TableCell>
-                    <TableCell className="text-gray-500">{agency.lastUpdated}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedAgency(agency)}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                      Loading agencies...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredAgencies.map((agency) => (
+                    <TableRow key={agency.id}>
+                      <TableCell>{agency.code}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-gray-400" />
+                          {agency.name}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{agency.type}</Badge>
+                      </TableCell>
+                      <TableCell>{agency.role}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {agency.components.map((comp) => (
+                            <Badge key={comp} className="bg-blue-50 text-blue-700">
+                              {comp}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>{agency.activeProjects}</TableCell>
+                      <TableCell>{agency.contact}</TableCell>
+                      <TableCell className="text-gray-500">{agency.lastUpdated}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedAgency(agency)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+
+                          {canEdit && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <MoreVertical className="w-4 h-4 text-gray-500" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditSheet(agency)}>
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Edit Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => setAgencyToDelete(agency.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete Agency
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
 
+      {/* View Details Sheet */}
       <Sheet open={!!selectedAgency} onOpenChange={() => setSelectedAgency(null)}>
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
           {selectedAgency && (
@@ -248,7 +448,7 @@ export function AgencyMapping() {
               <SheetHeader>
                 <SheetTitle>Agency Details</SheetTitle>
               </SheetHeader>
-              
+
               <div className="mt-6 space-y-6">
                 <div className="p-4 bg-blue-50 rounded-lg">
                   <div className="flex items-center gap-3 mb-2">
@@ -333,6 +533,34 @@ export function AgencyMapping() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Edit Sheet */}
+      <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit Agency</SheetTitle>
+          </SheetHeader>
+          <AgencyForm onSubmit={handleUpdate} submitLabel="Save Changes" />
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete Alert */}
+      <AlertDialog open={!!agencyToDelete} onOpenChange={() => setAgencyToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the agency and remove it from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

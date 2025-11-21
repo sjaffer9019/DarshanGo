@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Search, Filter, FileText, Download, Eye, Folder } from 'lucide-react';
+import { Search, Filter, FileText, Download, Eye, Folder, Plus, Trash2 } from 'lucide-react';
+import { api } from '../services/api';
+import { Document, Project } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/sheet';
 import {
   Select,
   SelectContent,
@@ -11,169 +15,209 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-
-const documents = [
-  {
-    id: 1,
-    title: 'Project Proposal - Adarsh Gram Rampur',
-    type: 'Proposal',
-    uploadedBy: 'Project Manager',
-    project: 'AG-2024-001',
-    date: '2024-01-10',
-    size: '2.4 MB',
-    category: 'Planning',
-  },
-  {
-    id: 2,
-    title: 'Environmental Clearance Certificate',
-    type: 'Certificate',
-    uploadedBy: 'Legal Team',
-    project: 'AG-2024-001',
-    date: '2024-01-25',
-    size: '1.1 MB',
-    category: 'Compliance',
-  },
-  {
-    id: 3,
-    title: 'Detailed Project Report (DPR)',
-    type: 'Report',
-    uploadedBy: 'Technical Team',
-    project: 'AG-2024-001',
-    date: '2024-02-05',
-    size: '8.7 MB',
-    category: 'Technical',
-  },
-  {
-    id: 4,
-    title: 'Fund Sanction Letter - Hostel Bhopal',
-    type: 'Letter',
-    uploadedBy: 'Finance Officer',
-    project: 'HST-2024-023',
-    date: '2024-02-15',
-    size: '0.5 MB',
-    category: 'Finance',
-  },
-  {
-    id: 5,
-    title: 'Q1 Progress Report - GIA Mumbai',
-    type: 'Report',
-    uploadedBy: 'Project Manager',
-    project: 'GIA-2024-156',
-    date: '2024-04-01',
-    size: '3.2 MB',
-    category: 'Progress',
-  },
-  {
-    id: 6,
-    title: 'Site Inspection Report - May 2024',
-    type: 'Inspection',
-    uploadedBy: 'Inspector A. Sharma',
-    project: 'AG-2024-001',
-    date: '2024-05-15',
-    size: '4.1 MB',
-    category: 'Inspection',
-  },
-  {
-    id: 7,
-    title: 'Tender Document - Construction Work',
-    type: 'Tender',
-    uploadedBy: 'Procurement Team',
-    project: 'AG-2024-087',
-    date: '2024-06-10',
-    size: '5.2 MB',
-    category: 'Procurement',
-  },
-  {
-    id: 8,
-    title: 'Utilization Certificate Q2',
-    type: 'Certificate',
-    uploadedBy: 'Finance Officer',
-    project: 'HST-2024-034',
-    date: '2024-07-20',
-    size: '0.8 MB',
-    category: 'Finance',
-  },
-  {
-    id: 9,
-    title: 'Completion Certificate - Phase 1',
-    type: 'Certificate',
-    uploadedBy: 'Project Manager',
-    project: 'AG-2024-087',
-    date: '2024-09-15',
-    size: '1.5 MB',
-    category: 'Completion',
-  },
-  {
-    id: 10,
-    title: 'Monthly Progress Report - October',
-    type: 'Report',
-    uploadedBy: 'Project Manager',
-    project: 'HST-2024-023',
-    date: '2024-10-31',
-    size: '2.8 MB',
-    category: 'Progress',
-  },
-  {
-    id: 11,
-    title: 'Quality Audit Report',
-    type: 'Audit',
-    uploadedBy: 'Quality Team',
-    project: 'GIA-2024-156',
-    date: '2024-11-05',
-    size: '3.5 MB',
-    category: 'Audit',
-  },
-  {
-    id: 12,
-    title: 'Vendor Agreement Document',
-    type: 'Agreement',
-    uploadedBy: 'Legal Team',
-    project: 'HST-2024-034',
-    date: '2024-11-12',
-    size: '1.9 MB',
-    category: 'Legal',
-  },
-];
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 
 const categoryColors: Record<string, string> = {
-  Planning: 'bg-blue-100 text-blue-700',
-  Compliance: 'bg-green-100 text-green-700',
-  Technical: 'bg-purple-100 text-purple-700',
-  Finance: 'bg-yellow-100 text-yellow-700',
-  Progress: 'bg-cyan-100 text-cyan-700',
-  Inspection: 'bg-orange-100 text-orange-700',
-  Procurement: 'bg-indigo-100 text-indigo-700',
-  Completion: 'bg-green-100 text-green-700',
-  Audit: 'bg-red-100 text-red-700',
-  Legal: 'bg-gray-700 text-white',
+  'UC': 'bg-blue-100 text-blue-700',
+  'Progress Report': 'bg-cyan-100 text-cyan-700',
+  'Inspection Report': 'bg-orange-100 text-orange-700',
+  'Other': 'bg-gray-100 text-gray-700',
 };
 
 export function DocumentRepository() {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+
+  // Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = 
-      doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCategory = filterCategory === 'all' || doc.category === filterCategory;
-    const matchesType = filterType === 'all' || doc.type === filterType;
-    
-    return matchesSearch && matchesCategory && matchesType;
+  // CRUD States
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+
+  // Form State
+  const [formData, setFormData] = useState<Partial<Document>>({
+    projectId: '',
+    title: '',
+    type: 'Other',
+    url: '#',
+    uploadedBy: user?.name || 'User',
+    uploadDate: new Date().toISOString().split('T')[0],
+    status: 'Pending'
   });
 
-  const categories = [...new Set(documents.map(d => d.category))];
-  const types = [...new Set(documents.map(d => d.type))];
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [docsData, projectsData] = await Promise.all([
+        api.documents.getAll(),
+        api.projects.getAll()
+      ]);
+      setDocuments(docsData);
+      setProjects(projectsData);
+    } catch (error) {
+      console.error('Failed to fetch data', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.documents.create({
+        ...formData,
+        uploadedBy: user?.name || 'User',
+        uploadDate: new Date().toISOString().split('T')[0]
+      } as any);
+      setIsAddSheetOpen(false);
+      fetchData();
+      setFormData({
+        projectId: '',
+        title: '',
+        type: 'Other',
+        url: '#',
+        uploadedBy: user?.name || 'User',
+        uploadDate: new Date().toISOString().split('T')[0],
+        status: 'Pending'
+      });
+    } catch (error) {
+      console.error('Failed to upload document', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!docToDelete) return;
+    try {
+      await api.documents.delete(docToDelete);
+      setDocToDelete(null);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to delete document', error);
+    }
+  };
+
+  const canEdit = user?.role === 'Admin' || user?.role === 'StateNodalOfficer' || user?.role === 'AgencyAdmin';
+
+  const getProjectDetails = (projectId: string) => {
+    return projects.find(p => p.id === projectId);
+  };
+
+  const filteredDocuments = documents.filter(doc => {
+    const project = getProjectDetails(doc.projectId);
+    const matchesSearch =
+      doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.projectId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.uploadedBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (project?.title && project.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesType = filterType === 'all' || doc.type === filterType;
+
+    return matchesSearch && matchesType;
+  });
+
+  const types = ['UC', 'Progress Report', 'Inspection Report', 'Other'];
+
+  const DocumentForm = ({ onSubmit, submitLabel }: { onSubmit: (e: React.FormEvent) => void, submitLabel: string }) => (
+    <form onSubmit={onSubmit} className="space-y-4 mt-6">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Project</label>
+        <Select
+          value={formData.projectId}
+          onValueChange={(val) => setFormData({ ...formData, projectId: val })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select Project" />
+          </SelectTrigger>
+          <SelectContent>
+            {projects.map(p => (
+              <SelectItem key={p.id} value={p.id}>{p.title} ({p.id})</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Document Title</label>
+        <Input
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          placeholder="e.g., Q1 Progress Report"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Document Type</label>
+        <Select
+          value={formData.type}
+          onValueChange={(val: any) => setFormData({ ...formData, type: val })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {types.map(t => (
+              <SelectItem key={t} value={t}>{t}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">File URL (Mock)</label>
+        <Input
+          value={formData.url}
+          onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+          placeholder="https://..."
+        />
+      </div>
+
+      <Button type="submit" className="w-full">{submitLabel}</Button>
+    </form>
+  );
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-gray-900 mb-1">Document Repository</h1>
-        <p className="text-gray-500">Centralized document storage and management</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Document Repository</h1>
+          <p className="text-gray-500">Centralized document storage and management</p>
+        </div>
+
+        {canEdit && (
+          <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+            <SheetTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Upload Document
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Upload New Document</SheetTitle>
+              </SheetHeader>
+              <DocumentForm onSubmit={handleCreate} submitLabel="Upload" />
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
       <Card>
@@ -196,25 +240,10 @@ export function DocumentRepository() {
               <Filter className="w-4 h-4" />
               Filters
             </Button>
-            <Button>Upload Document</Button>
           </div>
 
           {showFilters && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-              <div>
-                <label className="text-gray-700 mb-2 block">Category</label>
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div>
                 <label className="text-gray-700 mb-2 block">Type</label>
                 <Select value={filterType} onValueChange={setFilterType}>
@@ -232,67 +261,106 @@ export function DocumentRepository() {
             </div>
           )}
 
-          {/* Category Folders */}
+          {/* Category Folders (Visual only based on types for now) */}
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-            {categories.map(category => {
-              const count = documents.filter(d => d.category === category).length;
+            {types.map(type => {
+              const count = documents.filter(d => d.type === type).length;
               return (
                 <div
-                  key={category}
+                  key={type}
                   className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
-                  onClick={() => setFilterCategory(category)}
+                  onClick={() => setFilterType(type)}
                 >
                   <Folder className="w-8 h-8 text-blue-600 mb-2" />
-                  <p className="text-gray-900 mb-1">{category}</p>
-                  <p className="text-gray-500">{count} files</p>
+                  <p className="text-gray-900 mb-1 text-sm font-medium truncate">{type}</p>
+                  <p className="text-gray-500 text-xs">{count} files</p>
                 </div>
               );
             })}
           </div>
 
           {/* Document Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
-              >
-                <div className="flex gap-3">
-                  <div className="p-3 bg-blue-50 rounded-lg h-fit">
-                    <FileText className="w-6 h-6 text-blue-600" />
+          {isLoading ? (
+            <div className="text-center py-12 text-gray-500">Loading documents...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredDocuments.map((doc) => {
+                const project = getProjectDetails(doc.projectId);
+                return (
+                  <div
+                    key={doc.id}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all relative group"
+                  >
+                    <div className="flex gap-3">
+                      <div className="p-3 bg-blue-50 rounded-lg h-fit">
+                        <FileText className="w-6 h-6 text-blue-600" />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-gray-900 mb-2 font-medium truncate" title={doc.title}>{doc.title}</h4>
+
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          <Badge className={categoryColors[doc.type] || 'bg-gray-100 text-gray-700'}>{doc.type}</Badge>
+                          <Badge variant="outline" className={
+                            doc.status === 'Verified' ? 'text-green-600 border-green-200 bg-green-50' :
+                              doc.status === 'Pending' ? 'text-yellow-600 border-yellow-200 bg-yellow-50' :
+                                'text-red-600 border-red-200 bg-red-50'
+                          }>{doc.status}</Badge>
+                        </div>
+
+                        <div className="space-y-1 text-gray-600 mb-3 text-sm">
+                          <p className="truncate" title={project?.title}>Project: {project?.title || doc.projectId}</p>
+                          <p>By {doc.uploadedBy}</p>
+                          <p>{doc.uploadDate}</p>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="gap-1 flex-1">
+                            <Eye className="w-3 h-3" />
+                            View
+                          </Button>
+                          <Button variant="outline" size="sm" className="gap-1 flex-1">
+                            <Download className="w-3 h-3" />
+                            Download
+                          </Button>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 px-2"
+                              onClick={() => setDocToDelete(doc.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-gray-900 mb-2">{doc.title}</h4>
-                    
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      <Badge variant="outline">{doc.type}</Badge>
-                      <Badge className={categoryColors[doc.category]}>{doc.category}</Badge>
-                    </div>
-                    
-                    <div className="space-y-1 text-gray-600 mb-3">
-                      <p>Project: {doc.project}</p>
-                      <p>By {doc.uploadedBy}</p>
-                      <p>{doc.date} • {doc.size}</p>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="gap-1">
-                        <Eye className="w-3 h-3" />
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1">
-                        <Download className="w-3 h-3" />
-                        Download
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Delete Alert */}
+      <AlertDialog open={!!docToDelete} onOpenChange={() => setDocToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the document.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

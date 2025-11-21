@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { UserManagement } from './admin-tabs/UserManagement';
+import UserManagement from '../pages/admin/UserManagement';
 import { RoleManagement } from './admin-tabs/RoleManagement';
 import { AgencyRegistration } from './admin-tabs/AgencyRegistration';
 

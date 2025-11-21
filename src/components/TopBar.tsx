@@ -1,13 +1,17 @@
-import { Search, Bell, User, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { Search, Bell, LogOut } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { useAuth } from '../context/AuthContext';
 
 const breadcrumbMap: Record<string, string[]> = {
   '/': ['Home'],
@@ -25,60 +29,66 @@ const breadcrumbMap: Record<string, string[]> = {
 };
 
 export function TopBar() {
-  const [searchFocused, setSearchFocused] = useState(false);
   const location = useLocation();
-  
+  const { user, logout } = useAuth();
+
   const breadcrumbs = breadcrumbMap[location.pathname] || ['Home'];
 
   return (
-    <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2 text-gray-500">
-          {breadcrumbs.map((crumb, index) => (
-            <span key={index} className="flex items-center gap-2">
-              {index > 0 && <span>/</span>}
-              <span className={index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}>
-                {crumb}
-              </span>
+    <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between sticky top-0 z-10">
+      <div className="flex items-center gap-2 text-gray-500 text-sm">
+        {breadcrumbs.map((crumb, index) => (
+          <span key={index} className="flex items-center gap-2">
+            {index > 0 && <span>/</span>}
+            <span className={index === breadcrumbs.length - 1 ? 'text-gray-900 font-medium' : ''}>
+              {crumb}
             </span>
-          ))}
-        </div>
+          </span>
+        ))}
       </div>
 
       <div className="flex items-center gap-4">
-        <div className={`relative transition-all ${searchFocused ? 'w-80' : 'w-64'}`}>
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search projects, agencies, documents..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
+        <div className="relative hidden md:block w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Search..."
+            className="pl-10 bg-gray-50 border-gray-200 h-9"
           />
         </div>
 
-        <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-          <Bell className="w-5 h-5 text-gray-600" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
+        <Button variant="ghost" size="icon" className="relative text-gray-500">
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+        </Button>
+
+        <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-blue-700" />
-            </div>
-            <span className="text-gray-700">Admin User</span>
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="flex items-center gap-3 hover:bg-gray-50 p-1 pr-3 rounded-full md:rounded-lg h-auto">
+              <div className="text-right hidden md:block">
+                <p className="text-sm font-medium text-gray-900 leading-none">{user?.name || 'User'}</p>
+                <p className="text-xs text-gray-500 mt-1">{user?.role || 'Viewer'}</p>
+              </div>
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=0D8ABC&color=fff`} />
+                <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+              </Avatar>
+            </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>Help</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">Logout</DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600 cursor-pointer" onSelect={logout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Log out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </div>
+    </header>
   );
 }
