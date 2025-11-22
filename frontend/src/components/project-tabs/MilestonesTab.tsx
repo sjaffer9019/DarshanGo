@@ -79,7 +79,7 @@ export function MilestonesTab({ projectId }: MilestonesTabProps) {
       };
 
       if (editingMilestone) {
-        await api.milestones.update(editingMilestone.id, milestoneData);
+        await api.milestones.update(projectId, editingMilestone.id, milestoneData);
       } else {
         await api.milestones.create(milestoneData as any);
       }
@@ -95,7 +95,7 @@ export function MilestonesTab({ projectId }: MilestonesTabProps) {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.milestones.delete(id);
+      await api.milestones.delete(projectId, id);
       fetchMilestones();
     } catch (error) {
       console.error('Failed to delete milestone', error);

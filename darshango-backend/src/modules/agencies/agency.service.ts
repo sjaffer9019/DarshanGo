@@ -23,7 +23,7 @@ export const updateAgency = async (id: string, updateData: any) => {
     // BACKEND → FIRESTORE FLOW
     await db.collection('agencies').doc(id).update({
         ...updateData,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString().split('T')[0]
     });
     const doc = await db.collection('agencies').doc(id).get();
     return { id: doc.id, ...doc.data() };

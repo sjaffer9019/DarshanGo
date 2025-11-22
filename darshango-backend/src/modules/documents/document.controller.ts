@@ -10,7 +10,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response) => {
             return errorResponse(res, 'No file uploaded', 400);
         }
 
-        const publicUrl = await uploadFileToStorage(req.file, 'documents');
+        const publicUrl = await uploadFileToStorage(req.file);
 
         const documentData = {
             title: req.body.title || req.file.originalname,

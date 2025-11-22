@@ -20,8 +20,12 @@ export const getMilestones = async (projectId: string) => {
 };
 
 export const getAllMilestones = async () => {
-    const snapshot = await db.collectionGroup('milestones').orderBy('createdAt', 'desc').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const snapshot = await db.collectionGroup('milestones').get();
+    const milestones = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Sort in memory to avoid index requirement
+    return milestones.sort((a: any, b: any) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 };
 
 export const updateMilestone = async (projectId: string, milestoneId: string, updateData: any) => {

@@ -10,36 +10,41 @@ import { FundFlowTab } from './project-tabs/FundFlowTab';
 import { DocumentsTab } from './project-tabs/DocumentsTab';
 import { InspectionsTab } from './project-tabs/InspectionsTab';
 import { api } from '../services/api';
-import { Project } from '../types';
+import { Project, Agency } from '../types';
 
 export function ProjectDetails() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
+  const [agencies, setAgencies] = useState<Agency[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProject = async () => {
+    const fetchData = async () => {
       if (!id) return;
       setIsLoading(true);
       try {
-        // In a real app, we would have a getById method. 
-        // For now, we filter from getAll since getById might not be implemented in the mock service yet
-        // or we can implement getById in api.ts if not present.
-        // Checking api.ts previously, it didn't have getById explicitly shown in the summary but likely has it or we can filter.
-        // Let's assume we need to filter for now to be safe, or better, add getById to api.ts if missing.
-        // Actually, let's try to find it from the list.
-        const projects = await api.projects.getAll();
-        const found = projects.find(p => p.id === id);
+        const [projectsData, agenciesData] = await Promise.all([
+          api.projects.getAll(),
+          api.agencies.getAll()
+        ]);
+
+        const found = projectsData.find(p => p.id === id);
         setProject(found || null);
+        setAgencies(agenciesData);
       } catch (error) {
-        console.error('Failed to fetch project details', error);
+        console.error('Failed to fetch details', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchProject();
+    fetchData();
   }, [id]);
+
+  const getAgencyName = (agencyId: string) => {
+    const agency = agencies.find(a => a.id === agencyId);
+    return agency ? agency.name : agencyId;
+  };
 
   if (isLoading) {
     return <div className="p-6 text-center">Loading project details...</div>;
@@ -85,7 +90,7 @@ export function ProjectDetails() {
                     <h1 className="text-gray-900 text-xl font-bold">{project.title}</h1>
                     <Badge className={statusColor}>{project.status}</Badge>
                   </div>
-                  <p className="text-gray-500 mb-2">{project.id}</p>
+                  <p className="text-gray-500 mb-2">{project.projectId || project.id}</p>
                   <Badge variant="outline">{project.component}</Badge>
                 </div>
               </div>
@@ -95,14 +100,14 @@ export function ProjectDetails() {
                   <Building2 className="w-4 h-4 text-gray-400 mt-1" />
                   <div>
                     <p className="text-gray-500 text-sm">Implementing Agency</p>
-                    <p className="text-gray-900 font-medium">{project.implementingAgencyId}</p>
+                    <p className="text-gray-900 font-medium">{getAgencyName(project.implementingAgencyId)}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
                   <Building2 className="w-4 h-4 text-gray-400 mt-1" />
                   <div>
                     <p className="text-gray-500 text-sm">Executing Agency</p>
-                    <p className="text-gray-900 font-medium">{project.executingAgencyId}</p>
+                    <p className="text-gray-900 font-medium">{getAgencyName(project.executingAgencyId)}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">

@@ -1,5 +1,6 @@
 export interface Project {
     id: string;
+    projectId: string;
     component: 'Adarsh Gram' | 'GIA' | 'Hostel';
     title: string;
     implementingAgencyId: string;
@@ -41,12 +42,20 @@ export interface Agency {
 export interface Transaction {
     id: string;
     projectId: string;
-    type: 'Release' | 'Adjustment' | 'Utilization';
+    type: 'Ministry Allocation' | 'State Transfer' | 'District Allocation' | 'Agency Release' | 'Utilization';
+    fromLevel: 'Ministry' | 'State' | 'District' | 'Agency' | 'Ground';
+    toLevel: 'State' | 'District' | 'Agency' | 'Ground';
     amount: number;
-    utr: string;
     date: string;
-    status: 'Completed' | 'Pending' | 'Processing' | 'Failed';
+    status: 'Pending' | 'Completed' | 'Approved' | 'Failed';
+    utrNumber?: string;
     description?: string;
+    proofFile?: string; // URL
+    createdBy?: string;
+    createdAt?: string;
+    state?: string;
+    district?: string;
+    agencyId?: string;
 }
 
 export interface Inspection {

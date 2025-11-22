@@ -81,13 +81,23 @@ const ProjectForm = ({ formData, setFormData, onSubmit, submitLabel, component, 
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 mt-6">
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Project Title</label>
-        <Input
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          required
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Project ID</label>
+          <Input
+            value={formData.projectId || ''}
+            onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Project Title</label>
+          <Input
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            required
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -96,7 +106,6 @@ const ProjectForm = ({ formData, setFormData, onSubmit, submitLabel, component, 
           <Select
             value={formData.component}
             onValueChange={(val: any) => setFormData({ ...formData, component: val })}
-            disabled={!!component}
           >
             <SelectTrigger>
               <SelectValue />
@@ -138,11 +147,13 @@ const ProjectForm = ({ formData, setFormData, onSubmit, submitLabel, component, 
               <SelectValue placeholder="Select Agency" />
             </SelectTrigger>
             <SelectContent>
-              {agencies.map((agency) => (
-                <SelectItem key={agency.id} value={agency.id}>
-                  {agency.name}
-                </SelectItem>
-              ))}
+              {agencies
+                .filter(a => a.roleType === 'Implementing')
+                .map((agency) => (
+                  <SelectItem key={agency.id} value={agency.id}>
+                    {agency.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -156,11 +167,13 @@ const ProjectForm = ({ formData, setFormData, onSubmit, submitLabel, component, 
               <SelectValue placeholder="Select Agency" />
             </SelectTrigger>
             <SelectContent>
-              {agencies.map((agency) => (
-                <SelectItem key={agency.id} value={agency.id}>
-                  {agency.name}
-                </SelectItem>
-              ))}
+              {agencies
+                .filter(a => a.roleType === 'Executing')
+                .map((agency) => (
+                  <SelectItem key={agency.id} value={agency.id}>
+                    {agency.name}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -290,6 +303,7 @@ export function ProjectManagement({ component }: ProjectManagementProps) {
 
   // Form State
   const [formData, setFormData] = useState<Partial<Project>>({
+    projectId: '',
     title: '',
     component: component || 'Adarsh Gram',
     state: '',
@@ -549,7 +563,7 @@ export function ProjectManagement({ component }: ProjectManagementProps) {
                       </div>
                       <div className="flex items-center gap-1">
                         <Building2 className="w-4 h-4" />
-                        {project.implementingAgencyId}
+                        {agencies.find(a => a.id === project.implementingAgencyId)?.name || project.implementingAgencyId}
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />

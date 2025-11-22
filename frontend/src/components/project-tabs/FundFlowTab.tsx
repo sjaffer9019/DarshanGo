@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, Upload, ExternalLink } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -38,11 +39,14 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
-    type: 'Release',
+    type: 'Ministry Allocation',
+    fromLevel: 'Ministry',
+    toLevel: 'State',
     amount: '',
-    utr: '',
+    utrNumber: '',
     date: new Date().toISOString().split('T')[0],
     status: 'Pending',
     description: ''
@@ -55,8 +59,7 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
   const fetchTransactions = async () => {
     setIsLoading(true);
     try {
-      const allTxns = await api.transactions.getAll();
-      const projectTxns = allTxns.filter(t => t.projectId === projectId);
+      const projectTxns = await api.transactions.getByProject(projectId);
       setTransactions(projectTxns);
     } catch (error) {
       console.error('Failed to fetch transactions', error);
@@ -65,32 +68,71 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const amount = parseFloat(formData.amount);
+      if (!amount || amount <= 0) {
+        toast.error('Please enter a valid positive amount');
+        return;
+      }
+
+      let proofFileUrl = '';
+      if (selectedFile) {
+        const docFormData = new FormData();
+        docFormData.append('file', selectedFile);
+        docFormData.append('projectId', projectId);
+        docFormData.append('title', `Proof for ${formData.utrNumber || 'Transaction'}`);
+        docFormData.append('category', 'Fund Proof');
+        docFormData.append('uploadedBy', user?.id || 'unknown');
+
+        try {
+          const doc = await api.documents.create(docFormData);
+          proofFileUrl = doc.url;
+        } catch (uploadError) {
+          console.error('File upload failed', uploadError);
+          toast.error('Failed to upload proof file, continuing without it.');
+        }
+      }
+
       const newTxn: Omit<Transaction, 'id'> = {
         projectId,
         type: formData.type as any,
-        amount: parseFloat(formData.amount) || 0,
-        utr: formData.utr,
+        fromLevel: formData.fromLevel as any,
+        toLevel: formData.toLevel as any,
+        amount: amount,
+        utrNumber: formData.utrNumber,
         date: formData.date,
         status: formData.status as any,
-        description: formData.description
+        description: formData.description,
+        proofFile: proofFileUrl,
+        createdBy: user?.id
       };
 
       await api.transactions.create(newTxn);
       setIsAddSheetOpen(false);
       fetchTransactions();
       setFormData({
-        type: 'Release',
+        type: 'Ministry Allocation',
+        fromLevel: 'Ministry',
+        toLevel: 'State',
         amount: '',
-        utr: '',
+        utrNumber: '',
         date: new Date().toISOString().split('T')[0],
         status: 'Pending',
         description: ''
       });
+      setSelectedFile(null);
+      toast.success('Transaction recorded successfully');
     } catch (error) {
       console.error('Failed to create transaction', error);
+      toast.error('Failed to create transaction');
     }
   };
 
@@ -99,6 +141,7 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Completed': return 'bg-green-100 text-green-700';
+      case 'Approved': return 'bg-blue-100 text-blue-700';
       case 'Pending': return 'bg-yellow-100 text-yellow-700';
       case 'Failed': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
@@ -107,11 +150,11 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
 
   // Calculate totals
   const totalReleased = transactions
-    .filter(t => t.type === 'Release' && t.status === 'Completed')
+    .filter(t => t.type !== 'Utilization' && (t.status === 'Completed' || t.status === 'Approved'))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalUtilized = transactions
-    .filter(t => t.type === 'Utilization' && t.status === 'Completed')
+    .filter(t => t.type === 'Utilization' && (t.status === 'Completed' || t.status === 'Approved'))
     .reduce((sum, t) => sum + t.amount, 0);
 
   return (
@@ -161,32 +204,77 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
                   Add Transaction
                 </Button>
               </SheetTrigger>
-              <SheetContent>
+              <SheetContent className="overflow-y-auto max-h-screen">
                 <SheetHeader>
-                  <SheetTitle>Record New Transaction</SheetTitle>
+                  <SheetTitle>Record New Transaction (Updated)</SheetTitle>
                 </SheetHeader>
                 <form onSubmit={handleCreate} className="space-y-4 mt-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">From Level</label>
+                      <Select
+                        value={formData.fromLevel}
+                        onValueChange={(val: string) => {
+                          let nextLevel = '';
+                          let txType = '';
+
+                          switch (val) {
+                            case 'Ministry':
+                              nextLevel = 'State';
+                              txType = 'Ministry Allocation';
+                              break;
+                            case 'State':
+                              nextLevel = 'District';
+                              txType = 'State Transfer';
+                              break;
+                            case 'District':
+                              nextLevel = 'Agency';
+                              txType = 'District Allocation';
+                              break;
+                            case 'Agency':
+                              nextLevel = 'Ground';
+                              txType = 'Utilization'; // Assuming Agency -> Ground is Utilization
+                              break;
+                            default:
+                              nextLevel = '';
+                          }
+
+                          setFormData({
+                            ...formData,
+                            fromLevel: val,
+                            toLevel: nextLevel,
+                            type: txType
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Ministry">Ministry</SelectItem>
+                          <SelectItem value="State">State</SelectItem>
+                          <SelectItem value="District">District</SelectItem>
+                          <SelectItem value="Agency">Agency</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">To Level</label>
+                      <Input value={formData.toLevel} disabled className="bg-gray-100" />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Transaction Type</label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(val: string) => setFormData({ ...formData, type: val })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Release">Release</SelectItem>
-                        <SelectItem value="Utilization">Utilization</SelectItem>
-                        <SelectItem value="Adjustment">Adjustment</SelectItem>
-                        <SelectItem value="Refund">Refund</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Input value={formData.type} disabled className="bg-gray-100" />
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Amount (₹)</label>
                     <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                       placeholder="e.g. 5000000"
@@ -197,9 +285,12 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">UTR Number</label>
                     <Input
-                      value={formData.utr}
-                      onChange={(e) => setFormData({ ...formData, utr: e.target.value })}
-                      placeholder="Bank UTR Number"
+                      value={formData.utrNumber}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                        setFormData({ ...formData, utrNumber: val });
+                      }}
+                      placeholder="Bank UTR Number (Alphanumeric)"
                       required
                     />
                   </div>
@@ -226,6 +317,7 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
                       <SelectContent>
                         <SelectItem value="Pending">Pending</SelectItem>
                         <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="Approved">Approved</SelectItem>
                         <SelectItem value="Failed">Failed</SelectItem>
                       </SelectContent>
                     </Select>
@@ -237,8 +329,19 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Brief description"
-                      required
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Proof Document</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        onChange={handleFileChange}
+                        className="cursor-pointer"
+                      />
+                      <Upload className="w-4 h-4 text-gray-500" />
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full">Record Transaction</Button>
@@ -252,47 +355,57 @@ export function FundFlowTab({ projectId }: FundFlowTabProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
-                <TableHead>Transaction ID</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>UTR Number</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Description</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Flow</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>UTR</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Documents</TableHead>
+                <TableHead>Proof</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     Loading transactions...
                   </TableCell>
                 </TableRow>
               ) : transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                     No transactions recorded for this project.
                   </TableCell>
                 </TableRow>
               ) : (
                 transactions.map((txn) => (
                   <TableRow key={txn.id}>
-                    <TableCell>{txn.id}</TableCell>
+                    <TableCell className="text-gray-600">{txn.date}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{txn.type}</Badge>
                     </TableCell>
-                    <TableCell className="text-gray-900">₹{txn.amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-gray-600">{txn.utr}</TableCell>
-                    <TableCell className="text-gray-600">{txn.date}</TableCell>
-                    <TableCell>{txn.description}</TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {txn.fromLevel} → {txn.toLevel}
+                    </TableCell>
+                    <TableCell className="text-gray-900 font-medium">₹{txn.amount.toLocaleString()}</TableCell>
+                    <TableCell className="text-gray-600 font-mono text-xs">{txn.utrNumber || '-'}</TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(txn.status)}>{txn.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <button className="text-blue-600 hover:text-blue-700">
-                        <FileText className="w-4 h-4" />
-                      </button>
+                      {txn.proofFile ? (
+                        <a
+                          href={txn.proofFile}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span className="text-xs">View</span>
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs">-</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

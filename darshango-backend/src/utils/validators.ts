@@ -18,6 +18,7 @@ export const loginSchema = z.object({
 });
 
 export const projectSchema = z.object({
+    projectId: z.string().min(1),
     title: z.string().min(3),
     component: z.enum(['Adarsh Gram', 'GIA', 'Hostel']),
     implementingAgencyId: z.string(),
@@ -62,14 +63,16 @@ export const agencySchema = z.object({
 
 export const fundSchema = z.object({
     projectId: z.string().optional(),
-    type: z.enum(['Release', 'Adjustment', 'Utilization']),
+    type: z.enum(['Ministry Allocation', 'State Transfer', 'District Allocation', 'Agency Release', 'Utilization']),
+    fromLevel: z.enum(['Ministry', 'State', 'District', 'Agency', 'Ground']),
+    toLevel: z.enum(['State', 'District', 'Agency', 'Ground']),
     amount: z.number().positive(),
-    utr: z.string().optional(),
-    transactionDate: z.string(),
-    status: z.enum(['Completed', 'Pending', 'Processing', 'Failed']),
+    utrNumber: z.string().optional(),
+    date: z.string(),
+    status: z.enum(['Pending', 'Completed', 'Approved', 'Failed']),
     description: z.string().optional(),
-    ucStatus: z.enum(['Pending', 'Submitted', 'Approved']).optional(),
-    ucDocumentUrl: z.string().optional(),
+    proofFile: z.string().optional(),
+    createdBy: z.string().optional(),
 });
 
 export const inspectionSchema = z.object({

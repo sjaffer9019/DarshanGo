@@ -51,6 +51,11 @@ export const deleteProject = async (id: string) => {
 
 export const recalculateProjectStats = async (projectId: string) => {
     const projectRef = db.collection('projects').doc(projectId);
+    const projectDoc = await projectRef.get();
+    if (!projectDoc.exists) {
+        console.warn(`Project ${projectId} not found, skipping stats recalculation.`);
+        return;
+    }
 
     // Milestones
     const milestonesSnap = await projectRef.collection('milestones').get();

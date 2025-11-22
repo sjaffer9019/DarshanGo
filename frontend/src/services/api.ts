@@ -60,27 +60,34 @@ export const api = {
             const response = await axiosInstance.get('/funds'); // Global funds endpoint
             return response.data.data;
         },
+        getByProject: async (projectId: string): Promise<Transaction[]> => {
+            const response = await axiosInstance.get(`/projects/${projectId}/funds`);
+            return response.data.data;
+        },
         create: async (txn: Omit<Transaction, 'id'>): Promise<Transaction> => {
-            // If projectId is present, we can use the nested route or the global one.
-            // Using global one for simplicity as it handles both.
-            const response = await axiosInstance.post('/funds', txn);
+            let url = '/funds';
+            const payload = { ...txn };
+
+            if (txn.projectId && txn.projectId !== 'GLOBAL_FUND_FLOW') {
+                url = `/projects/${txn.projectId}/funds`;
+            } else {
+                // Ensure projectId is removed for global funds so backend treats it as global
+                delete payload.projectId;
+            }
+
+            const response = await axiosInstance.post(url, payload);
             return response.data.data;
         },
         update: async (id: string, updates: Partial<Transaction>): Promise<Transaction> => {
-            // Note: Backend currently doesn't have a global update for funds, only nested.
-            // Assuming we have projectId in updates or we need to find it.
-            // For now, let's assume the frontend passes projectId if needed, or we add global update.
-            // But wait, the backend route is DELETE /:fid (global) but UPDATE is not global yet.
-            // Let's use the nested route if we have projectId, otherwise this might fail.
-            // Actually, the frontend FundFlow doesn't seem to have an Edit feature for transactions, only Delete.
-            // So update might not be used. If it is, we need to fix backend.
-            // For now, implementing as if global update existed or we'll fix backend if needed.
-            // Let's stick to what we have: Delete is global.
-            const response = await axiosInstance.patch(`/funds/${id}`, updates); // Need to implement this in backend if used
+            const response = await axiosInstance.patch(`/funds/${id}`, updates);
             return response.data.data;
         },
-        delete: async (id: string): Promise<void> => {
-            const response = await axiosInstance.delete(`/funds/${id}`);
+        delete: async (id: string, projectId?: string): Promise<void> => {
+            let url = `/funds/${id}`;
+            if (projectId && projectId !== 'GLOBAL_FUND_FLOW') {
+                url += `?projectId=${projectId}`;
+            }
+            const response = await axiosInstance.delete(url);
             return response.data.data;
         }
     },
@@ -186,14 +193,12 @@ export const api = {
             const response = await axiosInstance.post(`/projects/${milestone.projectId}/milestones`, milestone);
             return response.data.data;
         },
-        update: async (id: string, updates: Partial<Milestone>): Promise<Milestone> => {
-            // Need projectId. If not available, need global route.
-            // Assuming global route for now to be safe.
-            const response = await axiosInstance.patch(`/milestones/${id}`, updates);
+        update: async (projectId: string, milestoneId: string, updates: Partial<Milestone>): Promise<Milestone> => {
+            const response = await axiosInstance.put(`/projects/${projectId}/milestones/${milestoneId}`, updates);
             return response.data.data;
         },
-        delete: async (id: string): Promise<void> => {
-            const response = await axiosInstance.delete(`/milestones/${id}`);
+        delete: async (projectId: string, milestoneId: string): Promise<void> => {
+            const response = await axiosInstance.delete(`/projects/${projectId}/milestones/${milestoneId}`);
             return response.data.data;
         }
     }
