@@ -126,13 +126,13 @@ export const api = {
             return response.data.data;
         },
         create: async (document: any): Promise<Document> => {
-            // Document upload usually requires FormData
-            // The frontend controller seems to handle it.
-            // We need to check if 'document' is FormData or object.
-            // If it's object, we might need to convert.
-            // But let's assume the component sends what's needed.
-            // Actually, DocumentsTab sends FormData.
-            const response = await axiosInstance.post(`/projects/${document.get('projectId')}/documents`, document, {
+            const projectId = document.get('projectId');
+            let url = '/documents';
+            if (projectId && projectId !== 'undefined' && projectId !== 'null') {
+                url = `/projects/${projectId}/documents`;
+            }
+
+            const response = await axiosInstance.post(url, document, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             return response.data.data;

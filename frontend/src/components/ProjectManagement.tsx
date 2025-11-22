@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -345,6 +346,7 @@ export function ProjectManagement({ component }: ProjectManagementProps) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Creating project with data:', formData);
     try {
       await api.projects.create(formData as any);
       setIsAddSheetOpen(false);
@@ -356,10 +358,24 @@ export function ProjectManagement({ component }: ProjectManagementProps) {
         district: '',
         status: 'In Progress',
         estimatedCost: 0,
-        progress: 0
+        progress: 0,
+        implementingAgencyId: '',
+        executingAgencyId: '',
+        startDate: '',
+        endDate: '',
+        projectId: ''
       });
-    } catch (error) {
+      toast.success('Project created successfully');
+    } catch (error: any) {
       console.error('Failed to create project', error);
+      toast.error(`Failed to create project: ${error.response?.data?.message || error.message}`);
+      if (error.response?.data?.errors) {
+        console.error('Validation errors:', error.response.data.errors);
+        // Optionally show validation errors in toast
+        error.response.data.errors.forEach((err: any) => {
+          toast.error(`${err.path.join('.')}: ${err.message}`);
+        });
+      }
     }
   };
 
